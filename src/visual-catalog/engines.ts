@@ -843,15 +843,51 @@ export function drawPendulum(ctx: CanvasRenderingContext2D, entry: CatalogEntry,
 }
 
 // --- Hex ---
-type HexData = { cols: number, rows: number, phases: Float32Array }
+const HEX_HORIZ = Math.sqrt(3)
+const HEX_VERT = 1.5
 
-export function createHex(entry: CatalogEntry, seed: number, density: number, _w: number, _h: number): HexData {
-  const r = createRng(seed)
-  const cols = Math.min(22, Math.round(10 + density * 8 + entry.variant))
-  const rows = Math.min(18, Math.round(8 + density * 6 + entry.variant * 0.5))
-  const phases = new Float32Array(cols * rows)
-  for (let i = 0; i < phases.length; i++) phases[i] = r.fork(i).range(0, Math.PI * 2)
-  return { cols, rows, phases }
+type HexData = {
+  cols: number
+  rows: number
+  phases: Float32Array
+  hexR: number
+  originX: number
+  originY: number
+}
+
+function layoutHexGrid(w: number, h: number, scale: number, density: number) {
+  const margin = scaled(12, scale)
+  const availW = Math.max(1, w - margin * 2)
+  const availH = Math.max(1, h - margin * 2)
+
+  const cellW = scaled(34 - density * 16, scale)
+  const cellH = scaled(30 - density * 14, scale)
+  let cols = Math.min(56, Math.max(8, Math.ceil(availW / cellW)))
+  let rows = Math.min(48, Math.max(6, Math.ceil(availH / cellH)))
+
+  const hexR = Math.min(
+    availW / ((cols + 0.5) * HEX_HORIZ),
+    availH / ((rows - 1) * HEX_VERT + HEX_HORIZ),
+  )
+
+  cols = Math.min(56, Math.ceil(availW / (hexR * HEX_HORIZ)) + 1)
+  rows = Math.min(48, Math.ceil(availH / (hexR * HEX_VERT)) + 1)
+
+  const gridW = (cols - 1) * hexR * HEX_HORIZ + hexR * HEX_HORIZ
+  const gridH = (rows - 1) * hexR * HEX_VERT + hexR * HEX_HORIZ
+  const originX = margin + (availW - gridW) / 2
+  const originY = margin + (availH - gridH) / 2
+
+  return { cols, rows, hexR, originX, originY }
+}
+
+export function createHex(_entry: CatalogEntry, seed: number, density: number, w: number, h: number): HexData {
+  const rng = createRng(seed)
+  const { scale } = canvasLayoutFields(w, h)
+  const layout = layoutHexGrid(w, h, scale, density)
+  const phases = new Float32Array(layout.cols * layout.rows)
+  for (let i = 0; i < phases.length; i++) phases[i] = rng.fork(i).range(0, Math.PI * 2)
+  return { ...layout, phases }
 }
 
 export function stepHex(data: HexData, state: CatalogVisualState, speed: number, dt: number) {
@@ -862,17 +898,19 @@ export function stepHex(data: HexData, state: CatalogVisualState, speed: number,
   }
 }
 
-function hexCenter(col: number, row: number, r: number, w: number, h: number) {
-  const x = col * r * 1.75 + (row % 2 ? r * 0.875 : 0) + w * 0.08
-  const y = row * r * 1.5 + h * 0.1
-  return { x, y }
+function hexCenter(col: number, row: number, data: HexData) {
+  const { hexR, originX, originY } = data
+  return {
+    x: originX + col * hexR * HEX_HORIZ + (row % 2 ? hexR * (HEX_HORIZ / 2) : 0),
+    y: originY + row * hexR * HEX_VERT,
+  }
 }
 
 export function drawHex(ctx: CanvasRenderingContext2D, entry: CatalogEntry, data: HexData, state: CatalogVisualState) {
   const pal = paletteAt(entry.palette)
   state.firstFrame = clearFrame(ctx, state.width, state.height, pal, state.firstFrame)
-  const { width: w, height: h, scale, time } = state
-  const r = scaled(14, scale)
+  const { scale, time } = state
+  const drawR = data.hexR * 0.92
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   for (let row = 0; row < data.rows; row++) {
@@ -880,14 +918,14 @@ export function drawHex(ctx: CanvasRenderingContext2D, entry: CatalogEntry, data
       const phase = data.phases[row * data.cols + col]
       const v = 0.5 + 0.5 * Math.sin(phase + time * 0.8)
       if (v < 0.25) continue
-      const { x, y } = hexCenter(col, row, r, w, h)
+      const { x, y } = hexCenter(col, row, data)
       ctx.strokeStyle = `hsla(${pal.hue + col * 4}, 70%, 55%, ${v * 0.35})`
       ctx.lineWidth = scaled(1, scale)
       ctx.beginPath()
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI / 3) * i - Math.PI / 6
-        const px = x + Math.cos(a) * r * 0.9
-        const py = y + Math.sin(a) * r * 0.9
+        const px = x + Math.cos(a) * drawR
+        const py = y + Math.sin(a) * drawR
         if (i === 0) ctx.moveTo(px, py)
         else ctx.lineTo(px, py)
       }
@@ -899,12 +937,64 @@ export function drawHex(ctx: CanvasRenderingContext2D, entry: CatalogEntry, data
 }
 
 // --- Vortex ---
-type VortexParticle = { x: number, y: number, angle: number, r: number }
+type VortexParticle = {
+  x: number
+  y: number
+  angle: number
+  r: number
+  fade: number
+  coreSpin: number
+  coreAngle?: number
+  /** Spiraling in from a viewport-edge respawn; skip outer clamp until well inside */
+  fromEdge: boolean
+}
+
 type VortexData = { particles: VortexParticle[], strength: number }
+
+const VORTEX_CORE_ROTATIONS = 2
+const VORTEX_CORE_ZONE = 0.028
+const VORTEX_OUTER_CLAMP = 0.48
+const VORTEX_EDGE_CLEAR = 0.44
+
+function radiusToViewportEdge(cx: number, cy: number, dir: number, w: number, h: number, inset: number) {
+  const cos = Math.cos(dir)
+  const sin = Math.sin(dir)
+  let best = Infinity
+  if (Math.abs(cos) > 1e-5) {
+    const t = cos > 0 ? (w - inset - cx) / cos : (inset - cx) / cos
+    if (t > 0) best = Math.min(best, t)
+  }
+  if (Math.abs(sin) > 1e-5) {
+    const t = sin > 0 ? (h - inset - cy) / sin : (inset - cy) / sin
+    if (t > 0) best = Math.min(best, t)
+  }
+  return Number.isFinite(best) ? best : Math.min(w, h) * 0.45
+}
+
+function respawnVortexAtViewportEdge(
+  p: VortexParticle,
+  rng: Rng,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  inset: number,
+) {
+  const dir = rng.range(0, Math.PI * 2)
+  const edge = radiusToViewportEdge(cx, cy, dir, w, h, inset)
+  p.x = cx + Math.cos(dir) * edge
+  p.y = cy + Math.sin(dir) * edge
+  p.angle = dir
+  p.r = edge
+  p.fade = 0
+  p.coreSpin = 0
+  p.coreAngle = undefined
+  p.fromEdge = true
+}
 
 export function createVortex(entry: CatalogEntry, seed: number, density: number, w: number, h: number): VortexData {
   const rng = createRng(seed)
-  const n = particleCount(density, 50, 150, 280)
+  const n = particleCount(density, 75, 225, 420)
   const cx = w / 2
   const cy = h / 2
   const particles: VortexParticle[] = []
@@ -917,25 +1007,65 @@ export function createVortex(entry: CatalogEntry, seed: number, density: number,
       y: cy + Math.sin(angle) * dist,
       angle,
       r: dist,
+      fade: 1,
+      coreSpin: 0,
+      fromEdge: false,
     })
   }
   return { particles, strength: 1.2 + entry.variant * 0.25 }
 }
 
 export function stepVortex(data: VortexData, state: CatalogVisualState, speed: number, dt: number) {
-  const cx = state.width / 2
-  const cy = state.height / 2
+  const { width: w, height: h, scale } = state
+  const cx = w / 2
+  const cy = h / 2
   const pull = data.strength * dt * speed
-  for (const p of data.particles) {
+  const lim = Math.min(w, h)
+  const coreR = lim * VORTEX_CORE_ZONE
+  const spinNeeded = Math.PI * 2 * VORTEX_CORE_ROTATIONS
+  const fadeInRate = 1.5 * speed
+  const inset = scaled(1, scale)
+  const rng = createRng(state.seed + Math.floor(state.time * 7))
+
+  for (let i = 0; i < data.particles.length; i++) {
+    const p = data.particles[i]
+
+    const dx0 = p.x - cx
+    const dy0 = p.y - cy
+    const dist0 = Math.hypot(dx0, dy0) || 1
+    const tangent = Math.atan2(dy0, dx0) + Math.PI / 2
+    let inward = pull * 8
+    if (dist0 < lim * 0.1) {
+      inward *= 1.35 + (1 - dist0 / (lim * 0.1)) * 0.85
+    }
+    p.x += Math.cos(tangent) * pull * 55 + (-dx0 / dist0) * inward
+    p.y += Math.sin(tangent) * pull * 55 + (-dy0 / dist0) * inward
+    if (p.fromEdge) {
+      if (dist0 < lim * VORTEX_EDGE_CLEAR) p.fromEdge = false
+    } else if (dist0 > lim * VORTEX_OUTER_CLAMP) {
+      p.x = cx + (dx0 / dist0) * dist0 * 0.35
+      p.y = cy + (dy0 / dist0) * dist0 * 0.35
+    }
+
+    if (p.fade < 1) p.fade = Math.min(1, p.fade + fadeInRate * dt)
+
     const dx = p.x - cx
     const dy = p.y - cy
     const dist = Math.hypot(dx, dy) || 1
-    const tangent = Math.atan2(dy, dx) + Math.PI / 2
-    p.x += Math.cos(tangent) * pull * 55 + (-dx / dist) * pull * 8
-    p.y += Math.sin(tangent) * pull * 55 + (-dy / dist) * pull * 8
-    if (dist > Math.min(state.width, state.height) * 0.48) {
-      p.x = cx + (dx / dist) * dist * 0.35
-      p.y = cy + (dy / dist) * dist * 0.35
+    if (dist < coreR) {
+      const a = Math.atan2(dy, dx)
+      if (p.coreAngle !== undefined) {
+        let da = a - p.coreAngle
+        while (da > Math.PI) da -= Math.PI * 2
+        while (da < -Math.PI) da += Math.PI * 2
+        p.coreSpin += Math.abs(da)
+      }
+      p.coreAngle = a
+      if (p.coreSpin >= spinNeeded) {
+        respawnVortexAtViewportEdge(p, rng.fork(i), cx, cy, w, h, inset)
+      }
+    } else {
+      p.coreAngle = undefined
     }
   }
 }
@@ -946,7 +1076,9 @@ export function drawVortex(ctx: CanvasRenderingContext2D, entry: CatalogEntry, d
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   for (const p of data.particles) {
-    ctx.fillStyle = `hsla(${pal.hue + 40}, 75%, 58%, 0.45)`
+    const a = 0.45 * p.fade * p.fade
+    if (a < 0.02) continue
+    ctx.fillStyle = `hsla(${pal.hue + 40}, 75%, 58%, ${a})`
     ctx.beginPath()
     ctx.arc(p.x, p.y, scaled(1.8, state.scale), 0, Math.PI * 2)
     ctx.fill()
@@ -1220,71 +1352,6 @@ export function drawOrbit(ctx: CanvasRenderingContext2D, entry: CatalogEntry, da
       ctx.arc(last.x, last.y, scaled(b.size, state.scale), 0, Math.PI * 2)
       ctx.fill()
     }
-  }
-  ctx.restore()
-}
-
-// --- Comet (dedicated shooting stars) ---
-type CometParticle = { x: number, y: number, vx: number, vy: number, life: number, max: number }
-type CometData = { pool: CometParticle[], spawnRate: number }
-
-export function createComet(entry: CatalogEntry, _seed: number, density: number, _w: number, _h: number): CometData {
-  const pool: CometParticle[] = []
-  for (let i = 0; i < 12; i++) {
-    pool.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1 })
-  }
-  return { pool, spawnRate: 0.8 + density * 1.5 + entry.variant * 0.3 }
-}
-
-export function stepComet(data: CometData, state: CatalogVisualState, speed: number, dt: number) {
-  const rng = createRng(state.seed + Math.floor(state.time * 3))
-  const { width: w, height: h, scale } = state
-  if (rng.next() < data.spawnRate * dt * speed * 0.15) {
-    const slot = data.pool.find(p => p.life <= 0)
-    if (slot) {
-      const r = rng.fork(7)
-      const side = r.int(0, 1)
-      if (side === 0) {
-        slot.x = -30
-        slot.y = r.range(0, h * 0.6)
-        slot.vx = scaled(r.range(250, 500), scale)
-        slot.vy = scaled(r.range(40, 160), scale)
-      } else {
-        slot.x = r.range(0, w * 0.5)
-        slot.y = -30
-        slot.vx = scaled(r.range(80, 200), scale)
-        slot.vy = scaled(r.range(200, 400), scale)
-      }
-      slot.max = r.range(0.6, 1.4)
-      slot.life = slot.max
-    }
-  }
-  for (const p of data.pool) {
-    if (p.life <= 0) continue
-    p.x += p.vx * dt * speed
-    p.y += p.vy * dt * speed
-    p.life -= dt * speed
-  }
-}
-
-export function drawComet(ctx: CanvasRenderingContext2D, entry: CatalogEntry, data: CometData, state: CatalogVisualState) {
-  const pal = paletteAt(entry.palette)
-  state.firstFrame = clearFrame(ctx, state.width, state.height, pal, state.firstFrame)
-  ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
-  for (const p of data.pool) {
-    if (p.life <= 0) continue
-    const t = p.life / p.max
-    const len = scaled(60 + (1 - t) * 80, state.scale)
-    const g = ctx.createLinearGradient(p.x, p.y, p.x - p.vx * 0.05, p.y - p.vy * 0.05)
-    g.addColorStop(0, `hsla(${pal.hue}, 90%, 78%, ${t * 0.85})`)
-    g.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.strokeStyle = g
-    ctx.lineWidth = scaled(2, state.scale)
-    ctx.beginPath()
-    ctx.moveTo(p.x, p.y)
-    ctx.lineTo(p.x - (p.vx / Math.hypot(p.vx, p.vy || 1)) * len, p.y - (p.vy / Math.hypot(p.vx, p.vy || 1)) * len)
-    ctx.stroke()
   }
   ctx.restore()
 }

@@ -20,7 +20,6 @@ export type CatalogEngine =
   | 'fireflies'
   | 'waves'
   | 'orbit'
-  | 'comet'
 
 export type CatalogEntry = {
   id: string

@@ -1,0 +1,60 @@
+# Agent guide — Stream Systems Visual
+
+Generative fullscreen Canvas 2D backgrounds for OBS (`/v/*` routes, `/cycle` slideshow). React + Vite SPA; no server runtime for visuals.
+
+## Required reading
+
+Before adding or changing visuals, read **[docs/principles-of-visualizations.md](docs/principles-of-visualizations.md)**. It covers purpose, performance caps, layout, determinism, catalog vs hand-tuned workflows, and review criteria.
+
+## Keep principles up to date
+
+**Proactively update [docs/principles-of-visualizations.md](docs/principles-of-visualizations.md)** when the user gives you instructions, preferences, or corrections that should apply to future work—not only when they explicitly ask to edit the doc.
+
+Update principles in the same session when the user:
+
+- States how visuals should look, feel, or behave (e.g. fill the viewport, fade spawns, dwell at the core before respawn).
+- Rejects an approach (e.g. no palette-only catalog duplicates, don’t despawn too early).
+- Adds a workflow rule (e.g. regenerate thumbnails after visual changes).
+- Clarifies OBS, performance, or architecture constraints.
+
+**Do not** log one-off task details, transient bugs, or chat-specific context. **Do** capture durable rules an agent could follow without re-reading the conversation.
+
+Prefer editing an existing section over appending noise. Keep bullets concrete and scannable. If the user’s instruction contradicts the doc, update the doc to match their intent and implement the code change together.
+
+## Quick reference
+
+| Task | Where |
+|------|--------|
+| Register routes | `src/routes/route-config.ts`, `src/routes.ts` |
+| Hand-tuned sim + draw | `src/visualizations/<name>/` |
+| Catalog engine / seed | `src/visual-catalog/engines.ts`, `catalog-definitions.ts` |
+| Shared canvas page factory | `src/components/canvas-visual-page.tsx` |
+| URL params | `src/config/params.ts`, `src/config/create-visual-params.ts` |
+| Resolution scaling | `src/rendering/resolution-scale.ts` |
+| RNG | `src/simulation/prng.ts` |
+| Arrow prev/next visual | `src/hooks/use-visual-arrow-navigation.ts` |
+| Regenerate homepage thumbs | `npm run capture-thumbnails` |
+
+## Conventions
+
+- **Filenames:** lower-kebab-case.
+- **Imports:** top of file only (no inline imports).
+- **TypeScript:** exhaustive switches on unions/enums where applicable.
+- **Commits:** only when the user asks.
+- **Scope:** minimal diffs; match existing visual style (dark bg, trail fade, `lighter` composite).
+
+## Do not
+
+- Render text on the canvas.
+- Add catalog entries that duplicate hand-tuned visuals or differ only by palette.
+- Use `Math.random()` in simulation code (use `createRng`).
+- Drive per-frame simulation through React `useState`.
+- Commit without user request unless they asked for a commit.
+
+## Commands
+
+```bash
+npm run dev          # local dev
+npm run build        # typecheck + production bundle
+npm run capture-thumbnails   # build + screenshot all routes → public/thumbnails/
+```

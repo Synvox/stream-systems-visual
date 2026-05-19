@@ -14,7 +14,19 @@ export function HomePage() {
               className="home__tile"
               aria-label={route.ariaLabel}
             >
-              <span className="home__tile-mark" data-index={index % 6} />
+              <span className="home__tile-preview" data-index={index % 6}>
+                <img
+                  src={`/thumbnails/${route.id}.jpg`}
+                  alt=""
+                  width={280}
+                  height={200}
+                  loading="lazy"
+                  decoding="async"
+                  onError={e => {
+                    e.currentTarget.setAttribute('data-missing', '')
+                  }}
+                />
+              </span>
               <span className="home__tile-label">{route.label}</span>
             </a>
           </li>

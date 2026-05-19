@@ -49,8 +49,6 @@ function createData(entry: CatalogEntry, seed: number, density: number, w: numbe
       return engines.createWaves(entry, seed, density, w, h)
     case 'orbit':
       return engines.createOrbit(entry, seed, density, w, h)
-    case 'comet':
-      return engines.createComet(entry, seed, density, w, h)
     default: {
       const _exhaustive: never = entry.engine
       return _exhaustive
@@ -136,9 +134,6 @@ function stepData(state: CatalogVisualState, speed: number, dt: number) {
     case 'orbit':
       engines.stepOrbit(data as never, state, speed, dt)
       break
-    case 'comet':
-      engines.stepComet(data as never, state, speed, dt)
-      break
     default: {
       const _exhaustive: never = entry.engine
       return _exhaustive
@@ -205,9 +200,6 @@ function drawData(ctx: CanvasRenderingContext2D, state: CatalogVisualState) {
       break
     case 'orbit':
       engines.drawOrbit(ctx, entry, data as never, state)
-      break
-    case 'comet':
-      engines.drawComet(ctx, entry, data as never, state)
       break
     default: {
       const _exhaustive: never = entry.engine

@@ -1,6 +1,6 @@
 # Stream Systems Visual
 
-Generative “starting soon” backgrounds for live streams (OBS browser source). **116** full-screen Canvas 2D visuals (16 hand-tuned + 100 catalog) with shared `seed`, `density`, and `speed` URL params.
+Generative “starting soon” backgrounds for live streams (OBS browser source). **25** full-screen Canvas 2D visuals (16 hand-tuned + 9 catalog) with shared `seed`, `density`, and `speed` URL params.
 
 ## Quick start
 
@@ -69,9 +69,21 @@ Legacy `/?cycle=1&interval=10` redirects to `/cycle?interval=10`.
 | `/v/drift` | Soft bokeh drift |
 | `/v/contour` | Contour heightfield |
 
+Design guidelines: [docs/principles-of-visualizations.md](docs/principles-of-visualizations.md) (also linked from [AGENTS.md](AGENTS.md)).
+
 Hand-tuned visuals: add modules under `src/visualizations/`, then register in `src/routes/route-config.ts` and `src/routes.ts`.
 
-Catalog visuals (100): add an entry in `src/visual-catalog/catalog-definitions.ts` (or extend an engine in `engines.ts`). Routes and homepage tiles are generated automatically.
+Catalog visuals: add a row to `CATALOG_SEEDS` in `src/visual-catalog/catalog-definitions.ts` (one distinctive variant per engine; skip engines that duplicate a hand-tuned visual). Routes and homepage tiles are generated automatically.
+
+### Homepage thumbnails
+
+Tiles use JPEG screenshots in `public/thumbnails/` (one per visual id). Regenerate after adding or changing visuals:
+
+```bash
+npm run capture-thumbnails
+```
+
+Requires Chromium (`npx playwright install chromium` once). Uses a fixed `seed=42&density=0.55` preview build.
 
 ## Keyboard shortcuts
 
@@ -79,6 +91,8 @@ Catalog visuals (100): add an entry in `src/visual-catalog/catalog-definitions.t
 |-----|--------|
 | Space | Pause / resume |
 | R | Reseed (random) |
+| Arrow left / up | Previous visual |
+| Arrow right / down | Next visual |
 | O | Toggle overlay chrome (systems) |
 | D | Toggle debug stats (systems) |
 

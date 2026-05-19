@@ -1,5 +1,6 @@
 import { Suspense, useEffect, type ReactNode } from 'react'
 import { BackgroundMusic } from './components/background-music'
+import { VisualArrowNavigation } from './hooks/use-visual-arrow-navigation'
 import { useNavigationPath } from './hooks/use-navigation-path'
 import { readCycleInterval, readCycleOptions } from './hooks/use-navigation-search'
 import { CyclePage } from './pages/cycle-page'
@@ -51,9 +52,12 @@ export default function App() {
   } else {
     const Page = match.route.Page
     page = (
-      <Suspense fallback={null}>
-        <Page />
-      </Suspense>
+      <>
+        <VisualArrowNavigation />
+        <Suspense fallback={null}>
+          <Page />
+        </Suspense>
+      </>
     )
   }
 
