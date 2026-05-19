@@ -78,37 +78,29 @@ canvas {
 .visual-cycle__layer--outgoing {
   opacity: 1;
   z-index: 1;
-  animation: visual-cycle-fade-out var(--visual-crossfade-duration)
-    cubic-bezier(0.42, 0, 0.18, 1) forwards;
+  animation: visual-cycle-fade-out var(--visual-crossfade-duration) linear forwards;
 }
 
 .visual-cycle__layer--incoming {
   opacity: 0;
   z-index: 2;
-  animation: visual-cycle-fade-in var(--visual-crossfade-duration)
-    cubic-bezier(0.42, 0, 0.18, 1) forwards;
+  animation: visual-cycle-fade-in var(--visual-crossfade-duration) linear forwards;
 }
 
 @keyframes visual-cycle-fade-out {
-  0% {
+  from {
     opacity: 1;
   }
-  35% {
-    opacity: 0.82;
-  }
-  100% {
+  to {
     opacity: 0;
   }
 }
 
 @keyframes visual-cycle-fade-in {
-  0% {
+  from {
     opacity: 0;
   }
-  40% {
-    opacity: 0.35;
-  }
-  100% {
+  to {
     opacity: 1;
   }
 }
