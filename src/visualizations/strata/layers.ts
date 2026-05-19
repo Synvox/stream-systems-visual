@@ -3,6 +3,7 @@
  */
 
 import { createRng } from '../../simulation/prng'
+import { placeSpreadNorm } from '../../simulation/spread-placement'
 
 export type StrataLayer = {
   /** Normalized vertical anchor 0–1 */
@@ -42,12 +43,13 @@ export function createStrataField(
 ): StrataField {
   const rng = createRng(seed)
   const count = layerCount(density)
+  const anchors = placeSpreadNorm(rng.fork(3), count, { minDist: 0.08 })
   const layers: StrataLayer[] = []
 
   for (let i = 0; i < count; i++) {
     const r = rng.fork(i * 37 + 11)
     layers.push({
-      anchor: (i + 1) / (count + 1),
+      anchor: anchors[i].y,
       amplitude: r.range(14, 42),
       frequency: r.range(0.0016, 0.0034),
       phase: r.range(0, Math.PI * 2),

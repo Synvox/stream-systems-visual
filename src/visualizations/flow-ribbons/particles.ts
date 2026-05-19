@@ -4,6 +4,7 @@
  */
 
 import { createRng, type Rng } from '../../simulation/prng'
+import { randomInCanvas } from '../../simulation/spread-placement'
 import { fieldDrift, flowAt } from './field'
 
 export type RibbonParticle = {
@@ -32,8 +33,7 @@ function particleCount(density: number) {
 }
 
 function spawnParticle(rng: Rng, w: number, h: number): RibbonParticle {
-  const x = rng.range(0, w)
-  const y = rng.range(0, h)
+  const { x, y } = randomInCanvas(rng, w, h)
   return {
     x,
     y,
@@ -62,22 +62,7 @@ export function createFlowRibbons(
 }
 
 function respawn(p: RibbonParticle, rng: Rng, w: number, h: number) {
-  const edge = rng.int(0, 3)
-  let x = 0
-  let y = 0
-  if (edge === 0) {
-    x = 0
-    y = rng.range(0, h)
-  } else if (edge === 1) {
-    x = w
-    y = rng.range(0, h)
-  } else if (edge === 2) {
-    x = rng.range(0, w)
-    y = 0
-  } else {
-    x = rng.range(0, w)
-    y = h
-  }
+  const { x, y } = randomInCanvas(rng, w, h)
   p.x = x
   p.y = y
   p.prevX = x

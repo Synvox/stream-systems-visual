@@ -3,6 +3,7 @@
  */
 
 import { createRng } from '../../simulation/prng'
+import { placeSpreadPoints } from '../../simulation/spread-placement'
 
 export type Emitter = {
   baseX: number
@@ -43,13 +44,14 @@ export function createResonanceField(
 ): ResonanceField {
   const rng = createRng(seed)
   const count = emitterCount(density)
+  const positions = placeSpreadPoints(rng.fork(3), count, width, height)
   const emitters: Emitter[] = []
 
   for (let i = 0; i < count; i++) {
     const r = rng.fork(i * 29 + 5)
     emitters.push({
-      baseX: r.range(0.12, 0.88) * width,
-      baseY: r.range(0.12, 0.88) * height,
+      baseX: positions[i].x,
+      baseY: positions[i].y,
       phase: r.range(0, Math.PI * 2),
       frequency: r.range(0.018, 0.038),
       pulseSpeed: r.range(0.7, 1.4),

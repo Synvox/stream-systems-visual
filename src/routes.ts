@@ -1,9 +1,6 @@
 import { lazy, type ComponentType } from 'react'
 import { SystemsVisualPage } from './pages/systems-visual-page'
 
-const OrbFieldVisualPage = lazy(() =>
-  import('./pages/orb-field-visual-page').then(m => ({ default: m.OrbFieldVisualPage })),
-)
 const FlowRibbonsVisualPage = lazy(() =>
   import('./pages/flow-ribbons-visual-page').then(m => ({ default: m.FlowRibbonsVisualPage })),
 )
@@ -16,6 +13,39 @@ const StrataVisualPage = lazy(() =>
 const SaberVisualPage = lazy(() =>
   import('./pages/saber-visual-page').then(m => ({ default: m.SaberVisualPage })),
 )
+const EmberVisualPage = lazy(() =>
+  import('./pages/ember-visual-page').then(m => ({ default: m.EmberVisualPage })),
+)
+const CascadeVisualPage = lazy(() =>
+  import('./pages/cascade-visual-page').then(m => ({ default: m.CascadeVisualPage })),
+)
+const SonarVisualPage = lazy(() =>
+  import('./pages/sonar-visual-page').then(m => ({ default: m.SonarVisualPage })),
+)
+const MeshVisualPage = lazy(() =>
+  import('./pages/mesh-visual-page').then(m => ({ default: m.MeshVisualPage })),
+)
+const VoidVisualPage = lazy(() =>
+  import('./pages/void-visual-page').then(m => ({ default: m.VoidVisualPage })),
+)
+const WeaveVisualPage = lazy(() =>
+  import('./pages/weave-visual-page').then(m => ({ default: m.WeaveVisualPage })),
+)
+const PulseVisualPage = lazy(() =>
+  import('./pages/pulse-visual-page').then(m => ({ default: m.PulseVisualPage })),
+)
+const AuroraVisualPage = lazy(() =>
+  import('./pages/aurora-visual-page').then(m => ({ default: m.AuroraVisualPage })),
+)
+const SparksVisualPage = lazy(() =>
+  import('./pages/sparks-visual-page').then(m => ({ default: m.SparksVisualPage })),
+)
+const DriftVisualPage = lazy(() =>
+  import('./pages/drift-visual-page').then(m => ({ default: m.DriftVisualPage })),
+)
+const ContourVisualPage = lazy(() =>
+  import('./pages/contour-visual-page').then(m => ({ default: m.ContourVisualPage })),
+)
 import {
   homePath,
   matchRouteConfig,
@@ -27,20 +57,30 @@ export type VisualizationRoute = VisualizationRouteConfig & {
   Page: ComponentType
 }
 
-const pagesById = {
+export const visualizationPagesById = {
   systems: SystemsVisualPage,
-  'orb-field': OrbFieldVisualPage,
   'flow-ribbons': FlowRibbonsVisualPage,
   resonance: ResonanceVisualPage,
   strata: StrataVisualPage,
   saber: SaberVisualPage,
+  ember: EmberVisualPage,
+  cascade: CascadeVisualPage,
+  sonar: SonarVisualPage,
+  mesh: MeshVisualPage,
+  void: VoidVisualPage,
+  weave: WeaveVisualPage,
+  pulse: PulseVisualPage,
+  aurora: AuroraVisualPage,
+  sparks: SparksVisualPage,
+  drift: DriftVisualPage,
+  contour: ContourVisualPage,
 } satisfies Record<string, ComponentType>
 
-/** Register new full-screen visuals in route-config.ts and pagesById */
+/** Register new full-screen visuals in route-config.ts and visualizationPagesById */
 export const visualizationRoutes: VisualizationRoute[] = visualizationRouteConfigs.map(
   config => ({
     ...config,
-    Page: pagesById[config.id as keyof typeof pagesById],
+    Page: visualizationPagesById[config.id as keyof typeof visualizationPagesById],
   }),
 )
 

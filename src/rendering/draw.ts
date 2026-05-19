@@ -8,7 +8,6 @@
  * 6. DOM overlays (status chrome) — no text, drawn on canvas for OBS simplicity
  */
 
-import { createRng } from '../simulation/prng'
 import { getEdgeSegment } from '../simulation/world'
 import type { Edge, World } from '../simulation/types'
 import { palette } from './palette'
@@ -163,61 +162,12 @@ function drawNode(
   ctx.fill()
 }
 
-function drawOverlays(
-  ctx: CanvasRenderingContext2D,
-  opts: DrawOptions,
-  world: World,
-) {
-  const pad = 48
+function drawOverlays(ctx: CanvasRenderingContext2D, opts: DrawOptions) {
   const w = opts.width
   const h = opts.height
 
-  ctx.strokeStyle = palette.overlay
-  ctx.lineWidth = 1
-
-  // Corner brackets (title safe zones — user adds text in OBS)
-  const bracket = 28
-  ctx.beginPath()
-  ctx.moveTo(pad, pad + bracket)
-  ctx.lineTo(pad, pad)
-  ctx.lineTo(pad + bracket, pad)
-  ctx.stroke()
-
-  ctx.beginPath()
-  ctx.moveTo(w - pad - bracket, pad)
-  ctx.lineTo(w - pad, pad)
-  ctx.lineTo(w - pad, pad + bracket)
-  ctx.stroke()
-
-  ctx.beginPath()
-  ctx.moveTo(pad, h - pad - bracket)
-  ctx.lineTo(pad, h - pad)
-  ctx.lineTo(pad + bracket, h - pad)
-  ctx.stroke()
-
-  ctx.beginPath()
-  ctx.moveTo(w - pad - bracket, h - pad)
-  ctx.lineTo(w - pad, h - pad)
-  ctx.lineTo(w - pad, h - pad - bracket)
-  ctx.stroke()
-
-  // Status row: deterministic indicators from node health
-  const rng = createRng(opts.seed + 99)
-  const indicators = 5
-  const baseX = pad + 40
-  const baseY = h - pad - 12
-  for (let i = 0; i < indicators; i++) {
-    const node = world.nodes[i % world.nodes.length]
-    const blink = Math.sin(world.time * 2 + i * 1.3) > 0.2
-    ctx.fillStyle = blink ? statusColor(node.load, node.tier) : palette.statusIdle
-    ctx.beginPath()
-    ctx.arc(baseX + i * 18, baseY, 3, 0, Math.PI * 2)
-    ctx.fill()
-    rng.next()
-  }
-
-  // Center crosshair hint (very faint)
   ctx.strokeStyle = 'rgba(120, 130, 140, 0.08)'
+  ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(w / 2 - 12, h / 2)
   ctx.lineTo(w / 2 + 12, h / 2)
@@ -289,6 +239,6 @@ export function drawFrame(
     drawNode(ctx, p.x, p.y, node.load, node.tier)
   }
 
-  if (options.showOverlays) drawOverlays(ctx, options, world)
+  if (options.showOverlays) drawOverlays(ctx, options)
   if (options.showDebug) drawDebug(ctx, options, world)
 }

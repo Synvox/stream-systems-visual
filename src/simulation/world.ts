@@ -10,6 +10,7 @@
  */
 
 import { createRng, type Rng } from './prng'
+import { placeSpreadPoints } from './spread-placement'
 import type { Camera, Edge, Node, Vec2, World } from './types'
 
 const WORLD_RADIUS = 1.15
@@ -25,35 +26,22 @@ function dist(a: Vec2, b: Vec2) {
 }
 
 function placeNodes(rng: Rng, count: number): Node[] {
+  const w = WORLD_RADIUS * 2
+  const h = WORLD_RADIUS * 0.72 * 2
+  const positions = placeSpreadPoints(rng, count, w, h, { minDist: 0.07, pad: 0.04 })
   const nodes: Node[] = []
-  const minSep = 0.11
 
   for (let id = 0; id < count; id++) {
-    let pos: Vec2 | null = null
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const angle = rng.range(0, Math.PI * 2)
-      const radius = Math.sqrt(rng.next()) * WORLD_RADIUS
-      const candidate = {
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius * 0.72,
-      }
-      const ok = nodes.every(n => dist(n.pos, candidate) >= minSep)
-      if (ok) {
-        pos = candidate
-        break
-      }
-    }
-    if (!pos) {
-      pos = {
-        x: rng.range(-WORLD_RADIUS, WORLD_RADIUS),
-        y: rng.range(-WORLD_RADIUS * 0.72, WORLD_RADIUS * 0.72),
-      }
+    const r = rng.fork(id * 43)
+    const pos = {
+      x: positions[id].x - WORLD_RADIUS + r.range(-0.08, 0.08),
+      y: positions[id].y - WORLD_RADIUS * 0.72 + r.range(-0.06, 0.06),
     }
     nodes.push({
       id,
       pos,
-      load: rng.range(0.2, 0.7),
-      tier: rng.int(0, 2) as 0 | 1 | 2,
+      load: r.range(0.2, 0.7),
+      tier: r.int(0, 2) as 0 | 1 | 2,
     })
   }
   return nodes
@@ -61,17 +49,38 @@ function placeNodes(rng: Rng, count: number): Node[] {
 
 function buildEdges(rng: Rng, nodes: Node[]): Edge[] {
   const edges: Edge[] = []
-  const k = 2
   let edgeId = 0
 
   for (const node of nodes) {
-    const neighbors = nodes
+    const r = rng.fork(node.id * 31 + 5)
+    const others = nodes
       .filter(n => n.id !== node.id)
       .map(n => ({ n, d: dist(node.pos, n.pos) }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, k + rng.int(0, 1))
+    const byDist = [...others].sort((a, b) => a.d - b.d)
+    if (byDist.length === 0) continue
 
-    for (const { n, d } of neighbors) {
+    const targetLinks = r.int(2, 4)
+    const chosen: typeof others = []
+
+    chosen.push(byDist[0])
+    if (byDist.length > 1 && r.next() < 0.7) chosen.push(byDist[1])
+
+    while (chosen.length < targetLinks) {
+      const pool = others.filter(
+        o =>
+          !chosen.some(c => c.n.id === o.n.id) &&
+          o.d <= r.range(0.42, 1.55),
+      )
+      if (pool.length === 0) break
+      chosen.push(r.pick(pool))
+    }
+
+    if (r.next() < 0.4) {
+      const wild = others.filter(o => !chosen.some(c => c.n.id === o.n.id) && o.d < 1.65)
+      if (wild.length > 0) chosen.push(r.pick(wild))
+    }
+
+    for (const { n, d } of chosen) {
       if (node.id > n.id) continue
       const key = `${Math.min(node.id, n.id)}-${Math.max(node.id, n.id)}`
       if (edges.some(e => `${Math.min(e.a, e.b)}-${Math.max(e.a, e.b)}` === key)) continue
@@ -79,7 +88,7 @@ function buildEdges(rng: Rng, nodes: Node[]): Edge[] {
         id: edgeId++,
         a: node.id,
         b: n.id,
-        weight: 0.4 + (1 - Math.min(d / 1.4, 1)) * 0.6,
+        weight: 0.35 + (1 - Math.min(d / 1.5, 1)) * 0.55 + r.range(0, 0.15),
       })
     }
   }
@@ -180,10 +189,11 @@ function mutateTopology(world: World, rng: Rng) {
   }
 
   const a = rng.pick(world.nodes)
+  const linkRadius = rng.range(0.85, 1.45)
   const candidates = world.nodes
     .filter(n => n.id !== a.id)
     .map(n => ({ n, d: dist(a.pos, n.pos) }))
-    .filter(x => x.d < 1.1)
+    .filter(x => x.d < linkRadius)
     .sort((x, y) => x.d - y.d)
 
   for (const { n } of candidates) {

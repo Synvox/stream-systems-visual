@@ -6,6 +6,7 @@ import {
 import { writeParamsToSearch, type VisualParams } from '../config/params'
 import { useAnimationLoop } from '../hooks/use-animation-loop'
 import { useKeyboard } from '../hooks/use-keyboard'
+import { useVisualRuntime } from '../context/visual-runtime-context'
 import { currentDocumentUrl, navigateTo } from '../navigation/navigation-api'
 import { getRouteConfig } from '../routes/route-config'
 import { createResonanceDrawer } from '../visualizations/resonance/draw'
@@ -27,6 +28,7 @@ function viewportSize() {
 }
 
 export function ResonanceVisualPage() {
+  const { suppressNavigation } = useVisualRuntime()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fieldRef = useRef<ResonanceField | null>(null)
   const drawerRef = useRef<ReturnType<typeof createResonanceDrawer> | null>(null)
@@ -81,12 +83,13 @@ export function ResonanceVisualPage() {
   }, [params.seed, params.density, syncField])
 
   useEffect(() => {
+    if (suppressNavigation) return
     const next = writeParamsToSearch(params, routePath)
     if (currentDocumentUrl() === next) return
     const q = next.indexOf('?')
     const search = q === -1 ? '' : next.slice(q)
     void navigateTo(routePath, search, { replace: true })
-  }, [params])
+  }, [params, suppressNavigation])
 
   useAnimationLoop((dt) => {
     const canvas = canvasRef.current

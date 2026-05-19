@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  paramsFromPartial,
-  readParamsFromSearch,
-  writeParamsToSearch,
-  type UiState,
-  type VisualParams,
-} from '../config/params'
+import { paramsFromPartial, type UiState, type VisualParams } from '../config/params'
+import { readSystemsParams, writeSystemsParamsToSearch } from '../config/systems-params'
 import { useAnimationLoop } from '../hooks/use-animation-loop'
 import { useKeyboard } from '../hooks/use-keyboard'
 import { drawFrame } from '../rendering/draw'
 import { createWorld, stepWorld } from '../simulation/world'
 import type { World } from '../simulation/types'
+import { useVisualRuntime } from '../context/visual-runtime-context'
 import { currentDocumentUrl, navigateTo } from '../navigation/navigation-api'
 import { getRouteConfig } from '../routes/route-config'
 
@@ -21,11 +17,14 @@ function randomSeed() {
 }
 
 export function SystemsVisualPage() {
+  const { suppressNavigation } = useVisualRuntime()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const worldRef = useRef<World | null>(null)
 
+  const pinSeedInUrl = useRef(new URLSearchParams(window.location.search).has('seed'))
+
   const [params, setParams] = useState<VisualParams>(() =>
-    readParamsFromSearch(window.location.search),
+    readSystemsParams(window.location.search),
   )
   const [ui, setUi] = useState<UiState>({
     paused: false,
@@ -42,12 +41,13 @@ export function SystemsVisualPage() {
   }, [params.seed, params.density, syncWorld])
 
   useEffect(() => {
-    const next = writeParamsToSearch(params, routePath)
+    if (suppressNavigation) return
+    const next = writeSystemsParamsToSearch(params, routePath, pinSeedInUrl.current)
     if (currentDocumentUrl() === next) return
     const q = next.indexOf('?')
     const search = q === -1 ? '' : next.slice(q)
     void navigateTo(routePath, search, { replace: true })
-  }, [params])
+  }, [params, suppressNavigation])
 
   const drawOpts = useMemo(
     () => ({
@@ -103,8 +103,8 @@ export function SystemsVisualPage() {
     () => ({
       onPauseToggle: () => setUi(u => ({ ...u, paused: !u.paused })),
       onReseed: () => {
-        const seed = randomSeed()
-        setParams(p => paramsFromPartial({ ...p, seed }))
+        pinSeedInUrl.current = true
+        setParams(p => paramsFromPartial({ ...p, seed: randomSeed() }))
       },
       onOverlayToggle: () => setUi(u => ({ ...u, showOverlays: !u.showOverlays })),
       onDebugToggle: () => setUi(u => ({ ...u, showDebug: !u.showDebug })),

@@ -3,6 +3,7 @@
  */
 
 import { createRng } from '../../simulation/prng'
+import { placeSpreadPoints } from '../../simulation/spread-placement'
 
 export type SaberColor = {
   core: string
@@ -88,23 +89,18 @@ export function createSaberField(
 ): SaberField {
   const rng = createRng(seed)
   const count = bladeCount(density)
+  const anchors = placeSpreadPoints(rng.fork(3), count, width, height)
   const blades: SaberBlade[] = []
   const span = Math.min(width, height)
+  const cx = width * 0.5
+  const cy = height * 0.5
 
   for (let i = 0; i < count; i++) {
     const r = rng.fork(i * 41 + 7)
-    const duelSide = i % 2
-    const row = Math.floor(i / 2)
-    const rows = Math.max(1, Math.ceil(count / 2))
-    const yFrac = (row + 1) / (rows + 1)
+    const anchorX = anchors[i].x
+    const anchorY = anchors[i].y
 
-    const anchorX =
-      duelSide === 0
-        ? r.range(width * 0.12, width * 0.34)
-        : r.range(width * 0.66, width * 0.88)
-    const anchorY = height * yFrac + r.range(-span * 0.05, span * 0.05)
-
-    const towardCenter = duelSide === 0 ? 0 : Math.PI
+    const towardCenter = Math.atan2(cy - anchorY, cx - anchorX)
     const lengthBase = r.range(span * 0.34, span * 0.56)
 
     blades.push({
@@ -115,7 +111,7 @@ export function createSaberField(
       lengthBase,
       length: lengthBase,
       angle: towardCenter + r.range(-0.7, 0.7),
-      spin: (duelSide === 0 ? 1 : -1) * r.range(1.1, 2.4),
+      spin: (r.next() < 0.5 ? 1 : -1) * r.range(1.1, 2.4),
       wobbleAmp: r.range(0.18, 0.48),
       wobblePhase: r.range(0, Math.PI * 2),
       wobbleRate: r.range(1.4, 3.2),

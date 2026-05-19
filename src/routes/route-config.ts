@@ -2,6 +2,9 @@
 
 export const homePath = '/'
 
+/** OBS slideshow: random visuals, `?interval=` seconds between fades */
+export const cyclePath = '/cycle'
+
 export type VisualizationRouteConfig = {
   id: string
   path: string
@@ -16,12 +19,6 @@ export const visualizationRouteConfigs: VisualizationRouteConfig[] = [
     path: '/v/systems',
     label: 'Systems',
     ariaLabel: 'Living systems diagram',
-  },
-  {
-    id: 'orb-field',
-    path: '/v/orb-field',
-    label: 'Orb field',
-    ariaLabel: 'Glowing orb asteroid field',
   },
   {
     id: 'flow-ribbons',
@@ -46,6 +43,72 @@ export const visualizationRouteConfigs: VisualizationRouteConfig[] = [
     path: '/v/saber',
     label: 'Saber',
     ariaLabel: 'Glowing energy blade duel',
+  },
+  {
+    id: 'ember',
+    path: '/v/ember',
+    label: 'Ember',
+    ariaLabel: 'Rising ember particles',
+  },
+  {
+    id: 'cascade',
+    path: '/v/cascade',
+    label: 'Cascade',
+    ariaLabel: 'Falling blue particle cascade',
+  },
+  {
+    id: 'sonar',
+    path: '/v/sonar',
+    label: 'Sonar',
+    ariaLabel: 'Expanding sonar rings',
+  },
+  {
+    id: 'mesh',
+    path: '/v/mesh',
+    label: 'Mesh',
+    ariaLabel: 'Drifting node mesh',
+  },
+  {
+    id: 'void',
+    path: '/v/void',
+    label: 'Void',
+    ariaLabel: 'Starfield and comets',
+  },
+  {
+    id: 'weave',
+    path: '/v/weave',
+    label: 'Weave',
+    ariaLabel: 'Moiré sine weave',
+  },
+  {
+    id: 'pulse',
+    path: '/v/pulse',
+    label: 'Pulse',
+    ariaLabel: 'Grid pulse waves',
+  },
+  {
+    id: 'aurora',
+    path: '/v/aurora',
+    label: 'Aurora',
+    ariaLabel: 'Vertical aurora veils',
+  },
+  {
+    id: 'sparks',
+    path: '/v/sparks',
+    label: 'Sparks',
+    ariaLabel: 'Electric arc sparks',
+  },
+  {
+    id: 'drift',
+    path: '/v/drift',
+    label: 'Drift',
+    ariaLabel: 'Soft drifting bokeh',
+  },
+  {
+    id: 'contour',
+    path: '/v/contour',
+    label: 'Contour',
+    ariaLabel: 'Drifting contour field',
   },
 ]
 

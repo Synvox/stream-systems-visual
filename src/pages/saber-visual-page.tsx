@@ -3,6 +3,7 @@ import { paramsFromPartial, readSaberParams } from '../config/saber-params'
 import { writeParamsToSearch, type VisualParams } from '../config/params'
 import { useAnimationLoop } from '../hooks/use-animation-loop'
 import { useKeyboard } from '../hooks/use-keyboard'
+import { useVisualRuntime } from '../context/visual-runtime-context'
 import { currentDocumentUrl, navigateTo } from '../navigation/navigation-api'
 import { getRouteConfig } from '../routes/route-config'
 import { drawSaberFrame } from '../visualizations/saber/draw'
@@ -24,6 +25,7 @@ function viewportSize() {
 }
 
 export function SaberVisualPage() {
+  const { suppressNavigation } = useVisualRuntime()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fieldRef = useRef<SaberField | null>(null)
   const pausedRef = useRef(false)
@@ -85,12 +87,13 @@ export function SaberVisualPage() {
   }, [params.seed, params.density, syncField])
 
   useEffect(() => {
+    if (suppressNavigation) return
     const next = writeParamsToSearch(params, routePath)
     if (currentDocumentUrl() === next) return
     const q = next.indexOf('?')
     const search = q === -1 ? '' : next.slice(q)
     void navigateTo(routePath, search, { replace: true })
-  }, [params])
+  }, [params, suppressNavigation])
 
   useAnimationLoop((dt) => {
     const canvas = canvasRef.current
