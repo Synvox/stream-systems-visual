@@ -3,6 +3,10 @@
  * Requires a production build (`npm run build`) — uses `vite preview`.
  *
  * Usage: npm run capture-thumbnails
+ *        PREVIEW_PORT=4174 npm run capture-thumbnails:only living-flame
+ *
+ * Skips occupied preview ports by default. Set PREVIEW_REUSE=1 to connect
+ * to an existing preview instead of starting a new one.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -15,8 +19,8 @@ import { visualizationRouteConfigs } from '../src/routes/route-config.ts'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
 const outDir = path.join(root, 'public', 'thumbnails')
-const port = 4173
-const baseUrl = `http://127.0.0.1:${port}`
+const defaultPort = 4173
+const portScanMax = 10
 
 const previewParams = new URLSearchParams({
   seed: '42',
@@ -45,39 +49,89 @@ const extraWarmupMs: Record<string, number> = {
   'morph-field': 4000,
 }
 
+function previewPortCandidates() {
+  const preferred = Number(process.env.PREVIEW_PORT)
+  const start = Number.isFinite(preferred) && preferred > 0 ? preferred : defaultPort
+  return Array.from({ length: portScanMax }, (_, i) => start + i)
+}
+
+async function probePreview(port: number) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 function waitForServerReady(proc: ChildProcess): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('Preview server did not start in time')), 60_000)
+    let settled = false
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      proc.stdout?.off('data', onData)
+      proc.stderr?.off('data', onData)
+      proc.off('error', onError)
+      proc.off('exit', onExit)
+      fn()
+    }
     const onData = (chunk: Buffer) => {
       const text = chunk.toString()
-      if (text.includes('localhost') || text.includes('127.0.0.1')) {
-        clearTimeout(timeout)
-        proc.stdout?.off('data', onData)
-        proc.stderr?.off('data', onData)
-        resolve()
-      }
+      if (text.includes('localhost') || text.includes('127.0.0.1')) finish(resolve)
+    }
+    const onError = (err: Error) => finish(() => reject(err))
+    const onExit = (code: number | null) => {
+      if (code !== 0 && code !== null) finish(() => reject(new Error(`Preview server exited with code ${code}`)))
     }
     proc.stdout?.on('data', onData)
     proc.stderr?.on('data', onData)
-    proc.on('error', err => {
-      clearTimeout(timeout)
-      reject(err)
-    })
-    proc.on('exit', code => {
-      if (code !== 0 && code !== null) {
-        clearTimeout(timeout)
-        reject(new Error(`Preview server exited with code ${code}`))
-      }
-    })
+    proc.on('error', onError)
+    proc.on('exit', onExit)
   })
 }
 
-function startPreview(): ChildProcess {
+function startPreview(port: number): ChildProcess {
   return spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, BROWSER: 'none' },
   })
+}
+
+async function acquirePreview(): Promise<{ port: number, proc: ChildProcess | null }> {
+  const reuse = process.env.PREVIEW_REUSE === '1'
+
+  if (reuse) {
+    for (const port of previewPortCandidates()) {
+      if (await probePreview(port)) {
+        console.log(`Reusing preview on http://127.0.0.1:${port}`)
+        return { port, proc: null }
+      }
+    }
+    throw new Error(`PREVIEW_REUSE=1 but no preview found (${previewPortCandidates().join(', ')})`)
+  }
+
+  for (const port of previewPortCandidates()) {
+    if (await probePreview(port)) {
+      console.log(`Preview port ${port} is in use; trying next.`)
+      continue
+    }
+    const proc = startPreview(port)
+    try {
+      await waitForServerReady(proc)
+      console.log(`Started preview on http://127.0.0.1:${port}`)
+      return { port, proc }
+    } catch (err) {
+      proc.kill('SIGTERM')
+      const message = err instanceof Error ? err.message : String(err)
+      if (!message.includes('exited with code')) throw err
+    }
+  }
+
+  throw new Error(`Could not start preview (${previewPortCandidates().join(', ')})`)
 }
 
 function filterRoutes() {
@@ -130,9 +184,10 @@ async function waitForCanvasContent(page: Page, routeId: string): Promise<number
 async function main() {
   await mkdir(outDir, { recursive: true })
 
-  const preview = startPreview()
+  const { port: previewPort, proc: preview } = await acquirePreview()
+  const baseUrl = `http://127.0.0.1:${previewPort}`
+
   try {
-    await waitForServerReady(preview)
     await new Promise(r => setTimeout(r, 400))
 
     const browser = await chromium.launch()
@@ -166,7 +221,7 @@ async function main() {
     console.log(`\nDone: ${ok} captured, ${fail} failed → ${outDir}`)
     if (fail > 0) process.exitCode = 1
   } finally {
-    preview.kill('SIGTERM')
+    preview?.kill('SIGTERM')
   }
 }
 

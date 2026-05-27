@@ -1555,9 +1555,12 @@ function respawnGranularGrain(
   data: GranularData,
   scale: number,
   w: number,
+  time: number,
+  seed: number,
 ) {
   const spread = scaled(14, scale)
-  g.x = data.spoutX + rng.range(-spread, spread)
+  const sway = Math.sin(time * 0.45 + seed * 0.001) * scaled(36, scale)
+  g.x = data.spoutX + sway + rng.range(-spread, spread)
   g.y = data.spoutY
   g.vx = scaled(rng.range(-10, 10), scale)
   g.vy = scaled(rng.range(28, 62), scale)
@@ -1570,8 +1573,8 @@ export function createGranular(entry: CatalogEntry, seed: number, density: numbe
   const { rng, scale } = baseCtx(entry, seed, w, h)
   const n = particleCount(density, 80, 120, 220)
   const spoutRng = rng.fork(901)
-  const spoutX = spoutRng.range(w * 0.38, w * 0.62)
-  const spoutY = h * 0.08
+  const spoutX = spoutRng.range(w * 0.3, w * 0.48)
+  const spoutY = h * 0.06
   const grains: Grain[] = []
   for (let i = 0; i < n; i++) {
     const r = rng.fork(i * 71)
@@ -1604,10 +1607,10 @@ export function createGranular(entry: CatalogEntry, seed: number, density: numbe
     grains,
     spoutX,
     spoutY,
-    spawnAcc: 0.35,
-    spawnInterval: 0.14 / (0.45 + density * 0.85),
+    spawnAcc: 0.2,
+    spawnInterval: 0.09 / (0.35 + density * 0.9),
     spawnIdx: 0,
-    restLimit: 2.4 + (1 - density) * 1.6,
+    restLimit: 3.4 + (1 - density) * 2.2,
   }
 }
 
@@ -1616,7 +1619,7 @@ export function stepGranular(data: GranularData, state: CatalogVisualState, spee
   const rng = createRng(seed + Math.floor(time * 9))
   const { tx, ty } = granularSlopeTangent()
   const grav = scaled(38, scale)
-  const slidePull = scaled(42, scale)
+  const slidePull = scaled(34, scale)
   const restLimit = data.restLimit
   const restSpeed = scaled(6, scale) ** 2
   const grainR = scaled(2.2, scale)
@@ -1635,7 +1638,7 @@ export function stepGranular(data: GranularData, state: CatalogVisualState, spee
       }
     }
     data.spawnIdx = (pick + 1) % data.grains.length
-    respawnGranularGrain(data.grains[pick], rng.fork(pick * 11 + 3), data, scale, w)
+    respawnGranularGrain(data.grains[pick], rng.fork(pick * 11 + 3), data, scale, w, time, seed)
   }
 
   for (let i = 0; i < data.grains.length; i++) {
@@ -1654,9 +1657,9 @@ export function stepGranular(data: GranularData, state: CatalogVisualState, spee
       const slide = Math.max(vDotT, 0) * 0.88 + slidePull * dt * speed
       g.vx = tx * slide + wind * dt * speed * 0.35
       g.vy = ty * slide
-      g.vx *= 0.985
-      g.vy *= 0.985
-      g.vx += r.range(-0.5, 0.5) * scaled(14, scale) * dt * speed
+      g.vx *= 0.988
+      g.vy *= 0.988
+      g.vx += r.range(-0.5, 0.5) * scaled(18, scale) * dt * speed
       if (r.next() < 0.0018 * speed) {
         g.vx += r.range(-1, 1) * scaled(36, scale)
         g.vy += ty * scaled(22, scale)
@@ -1668,7 +1671,7 @@ export function stepGranular(data: GranularData, state: CatalogVisualState, spee
     if (onSlope && speed2 < restSpeed) {
       g.rest += dt * speed
       if (g.rest > restLimit) {
-        respawnGranularGrain(g, r.fork(17), data, scale, w)
+        respawnGranularGrain(g, r.fork(17), data, scale, w, time, seed)
         continue
       }
     } else {
@@ -1676,7 +1679,7 @@ export function stepGranular(data: GranularData, state: CatalogVisualState, spee
     }
 
     if (g.y > h + grainR || g.x < -grainR || g.x > w + grainR) {
-      respawnGranularGrain(g, r.fork(29), data, scale, w)
+      respawnGranularGrain(g, r.fork(29), data, scale, w, time, seed)
     }
   }
 }
@@ -1687,7 +1690,9 @@ export function drawGranular(ctx: CanvasRenderingContext2D, entry: CatalogEntry,
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   for (const g of data.grains) {
-    ctx.fillStyle = hsl(entry, g.y * 0.02, 62, 0.55)
+    const speed = Math.hypot(g.vx, g.vy)
+    const alpha = Math.min(0.72, 0.28 + speed * 0.0045)
+    ctx.fillStyle = hsl(entry, g.y * 0.02, 58 + Math.min(12, speed * 0.08), alpha)
     ctx.fillRect(g.x, g.y, scaled(2.2, state.scale), scaled(2.2, state.scale))
   }
   ctx.restore()
