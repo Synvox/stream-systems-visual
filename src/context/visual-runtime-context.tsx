@@ -2,6 +2,8 @@ import { createContext, useContext, type ReactNode } from 'react'
 
 export type VisualRuntimeValue = {
   suppressNavigation: boolean
+  /** Route config id when mounted inside VisualCycle (pathname stays `/cycle`). */
+  activeRouteId?: string
 }
 
 const VisualRuntimeContext = createContext<VisualRuntimeValue>({
@@ -10,13 +12,15 @@ const VisualRuntimeContext = createContext<VisualRuntimeValue>({
 
 export function VisualRuntimeProvider({
   suppressNavigation,
+  activeRouteId,
   children,
 }: {
   suppressNavigation: boolean
+  activeRouteId?: string
   children: ReactNode
 }) {
   return (
-    <VisualRuntimeContext.Provider value={{ suppressNavigation }}>
+    <VisualRuntimeContext.Provider value={{ suppressNavigation, activeRouteId }}>
       {children}
     </VisualRuntimeContext.Provider>
   )

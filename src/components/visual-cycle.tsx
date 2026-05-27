@@ -36,12 +36,36 @@ function phaseClass(phase: LayerPhase) {
   return 'visual-cycle__layer visual-cycle__layer--incoming'
 }
 
-function VisualLayer({ visualIndex }: { visualIndex: number }) {
+function describeVisual(visualIndex: number) {
+  const config = visualizationRouteConfigs[visualIndex]
+  return { visualIndex, id: config.id, label: config.label, path: config.path }
+}
+
+function VisualLayer({
+  slotId,
+  visualIndex,
+  phase,
+}: {
+  slotId: SlotId
+  visualIndex: number
+  phase: LayerPhase
+}) {
   const config = visualizationRouteConfigs[visualIndex]
   const Page = visualizationPagesById[config.id as keyof typeof visualizationPagesById]
 
+  useEffect(() => {
+    console.log('[visual-cycle] layer active', { slotId, phase, ...describeVisual(visualIndex) })
+  }, [slotId, visualIndex, phase])
+
+  useEffect(() => {
+    console.log('[visual-cycle] layer mounted', { slotId, ...describeVisual(visualIndex) })
+    return () => {
+      console.log('[visual-cycle] layer unmounted', { slotId, ...describeVisual(visualIndex) })
+    }
+  }, [slotId, visualIndex])
+
   return (
-    <VisualRuntimeProvider suppressNavigation>
+    <VisualRuntimeProvider suppressNavigation activeRouteId={config.id}>
       <Suspense fallback={null}>
         <Page />
       </Suspense>
@@ -64,7 +88,7 @@ function CycleSlot({
       className={phaseClass(layer.phase)}
       aria-hidden={layer.phase !== 'shown'}
     >
-      <VisualLayer visualIndex={layer.visualIndex} />
+      <VisualLayer slotId={slotId} visualIndex={layer.visualIndex} phase={layer.phase} />
     </div>
   )
 }
@@ -88,7 +112,10 @@ export function VisualCycle({
   const transitioningRef = useRef(false)
 
   const advance = useCallback(() => {
-    if (transitioningRef.current) return
+    if (transitioningRef.current) {
+      console.log('[visual-cycle] advance skipped — transition in progress')
+      return
+    }
     transitioningRef.current = true
 
     const front = frontSlotRef.current
@@ -96,13 +123,26 @@ export function VisualCycle({
 
     setSlots(prev => {
       const frontLayer = prev[front]
-      if (!frontLayer) return prev
+      if (!frontLayer) {
+        console.warn('[visual-cycle] advance aborted — front slot empty', { front, prev })
+        transitioningRef.current = false
+        return prev
+      }
 
       const nextIndex = randomOrder
         ? pickRandomIndex(frontLayer.visualIndex, count)
         : (frontLayer.visualIndex + 1) % count
 
+      console.log('[visual-cycle] crossfade start', {
+        frontSlot: front,
+        backSlot: back,
+        outgoing: describeVisual(frontLayer.visualIndex),
+        incoming: describeVisual(nextIndex),
+        crossfadeMs: CROSSFADE_MS,
+      })
+
       window.setTimeout(() => {
+        console.log('[visual-cycle] crossfade complete — now showing', describeVisual(nextIndex))
         setSlots({
           a: back === 'a' ? { visualIndex: nextIndex, phase: 'shown' } : null,
           b: back === 'b' ? { visualIndex: nextIndex, phase: 'shown' } : null,

@@ -1,6 +1,7 @@
-import { createElement, useMemo } from 'react'
+import { createElement, useEffect, useMemo } from 'react'
 import { createCanvasVisualPage } from '../components/canvas-visual-page'
 import { readCatalogParams } from '../config/catalog-params'
+import { useVisualRuntime } from '../context/visual-runtime-context'
 import { useNavigationPath } from '../hooks/use-navigation-path'
 import { catalogByPath } from '../visual-catalog/catalog-definitions'
 import {
@@ -36,8 +37,22 @@ function resolveCatalogId(pathname: string) {
 
 export function CatalogVisualPage() {
   const { pathname } = useNavigationPath()
-  const visualId = resolveCatalogId(pathname)
+  const { activeRouteId } = useVisualRuntime()
+  const visualId = activeRouteId ?? resolveCatalogId(pathname)
   const Page = useMemo(() => (visualId ? getCatalogPage(visualId) : null), [visualId])
+
+  useEffect(() => {
+    if (visualId) {
+      console.log('[visual-cycle] catalog visual active', {
+        visualId,
+        pathname,
+        source: activeRouteId ? 'cycle-context' : 'pathname',
+      })
+      return
+    }
+    console.warn('[visual-cycle] catalog visual unresolved', { pathname, activeRouteId })
+  }, [visualId, pathname, activeRouteId])
+
   if (!Page) return null
   return createElement(Page)
 }
