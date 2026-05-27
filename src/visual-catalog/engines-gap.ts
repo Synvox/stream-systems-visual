@@ -34,35 +34,61 @@ function hsl(entry: CatalogEntry, offset: number, l: number, a: number) {
   return `hsla(${pal.hue + offset}, 72%, ${l}%, ${a})`
 }
 
-// --- Branch (organic growth) ---
-type BranchSeg = { x1: number, y1: number, x2: number, y2: number, grow: number, max: number }
-type BranchData = { segs: BranchSeg[] }
+function viewportMin(w: number, h: number) {
+  return Math.min(w, h)
+}
 
-export function createBranch(entry: CatalogEntry, seed: number, density: number, w: number, h: number): BranchData {
-  const { rng, scale } = baseCtx(entry, seed, w, h)
+// --- Branch (organic growth) ---
+type BranchSeg = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  grow: number
+  rate: number
+}
+type BranchData = { segs: BranchSeg[], hold: number, density: number }
+
+function buildBranchSegs(entry: CatalogEntry, seed: number, density: number, w: number, h: number): BranchSeg[] {
+  const { rng } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const n = Math.round(8 + density * 14)
   const segs: BranchSeg[] = []
-  const baseY = h * 0.92
+  const baseY = h
   for (let i = 0; i < n; i++) {
     const r = rng.fork(i * 17)
-    const x = r.range(w * 0.15, w * 0.85)
-    const len = scaled(r.range(40, 110), scale)
+    const x = r.range(w * 0.08, w * 0.92)
+    const len = r.range(lim * 0.12, lim * 0.38)
     const ang = r.range(-Math.PI * 0.85, -Math.PI * 0.15)
     segs.push({
       x1: x,
       y1: baseY,
       x2: x + Math.cos(ang) * len,
       y2: baseY + Math.sin(ang) * len,
-      grow: 1,
-      max: 1,
+      grow: r.range(0, 0.12),
+      rate: r.range(0.22, 0.38),
     })
   }
-  return { segs }
+  return segs
 }
 
-export function stepBranch(data: BranchData, _state: CatalogVisualState, speed: number, dt: number) {
+export function createBranch(entry: CatalogEntry, seed: number, density: number, w: number, h: number): BranchData {
+  return { segs: buildBranchSegs(entry, seed, density, w, h), hold: 0, density }
+}
+
+export function stepBranch(data: BranchData, state: CatalogVisualState, speed: number, dt: number) {
+  const { entry, seed, width: w, height: h } = state
+  const allFull = data.segs.every(s => s.grow >= 1)
+  if (allFull) {
+    data.hold += dt * speed
+    if (data.hold >= 1.8) {
+      data.segs = buildBranchSegs(entry, seed + Math.floor(state.time * 3), data.density, w, h)
+      data.hold = 0
+    }
+    return
+  }
   for (const s of data.segs) {
-    if (s.grow < s.max) s.grow = Math.min(s.max, s.grow + dt * speed * 0.35)
+    if (s.grow < 1) s.grow = Math.min(1, s.grow + dt * speed * s.rate)
   }
 }
 
@@ -72,17 +98,17 @@ export function drawBranch(ctx: CanvasRenderingContext2D, entry: CatalogEntry, d
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   ctx.lineCap = 'round'
-  for (const s of data.segs) {
-    const t = s.grow
-    const x2 = s.x1 + (s.x2 - s.x1) * t
-    const y2 = s.y1 + (s.y2 - s.y1) * t
-    ctx.strokeStyle = hsl(entry, 8, 52, 0.35 * t)
+  data.segs.forEach((s, i) => {
+    const pulse = s.grow >= 1 ? 0.88 + 0.12 * Math.sin(state.time * 2.4 + i * 0.7) : s.grow
+    const x2 = s.x1 + (s.x2 - s.x1) * s.grow
+    const y2 = s.y1 + (s.y2 - s.y1) * s.grow
+    ctx.strokeStyle = hsl(entry, 8, 52, 0.35 * pulse)
     ctx.lineWidth = scaled(2.2, state.scale)
     ctx.beginPath()
     ctx.moveTo(s.x1, s.y1)
     ctx.lineTo(x2, y2)
     ctx.stroke()
-  }
+  })
   ctx.restore()
 }
 
@@ -176,14 +202,15 @@ type SmokeData = { puffs: SmokePuff[] }
 
 export function createSmoke(entry: CatalogEntry, seed: number, density: number, w: number, h: number): SmokeData {
   const { rng, scale } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const n = particleCount(density, 12, 18, 28)
   const puffs: SmokePuff[] = []
   for (let i = 0; i < n; i++) {
     const r = rng.fork(i * 31)
     puffs.push({
-      x: r.range(w * 0.2, w * 0.8),
-      y: r.range(h * 0.5, h * 0.95),
-      r: scaled(r.range(30, 70), scale),
+      x: r.range(w * 0.05, w * 0.95),
+      y: r.range(h * 0.35, h * 0.95),
+      r: r.range(lim * 0.08, lim * 0.18),
       vy: scaled(r.range(-25, -12), scale),
       phase: r.range(0, Math.PI * 2),
     })
@@ -226,16 +253,17 @@ type RippleRing = { x: number, y: number, r: number, max: number, life: number }
 type RippleData = { rings: RippleRing[], spawn: number }
 
 export function createRipple(entry: CatalogEntry, seed: number, density: number, w: number, h: number): RippleData {
-  const { rng, scale } = baseCtx(entry, seed, w, h)
+  const { rng } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const rings: RippleRing[] = []
   const count = 6 + Math.round(density * 4)
   for (let i = 0; i < count; i++) {
     const r = rng.fork(i * 11)
     rings.push({
-      x: r.range(w * 0.2, w * 0.8),
-      y: r.range(h * 0.3, h * 0.7),
-      r: scaled(r.range(20, 80), scale),
-      max: scaled(r.range(80, 160), scale),
+      x: r.range(w * 0.1, w * 0.9),
+      y: r.range(h * 0.15, h * 0.85),
+      r: r.range(lim * 0.02, lim * 0.08),
+      max: r.range(lim * 0.18, lim * 0.38),
       life: r.range(0, 1),
     })
   }
@@ -248,11 +276,12 @@ export function stepRipple(data: RippleData, state: CatalogVisualState, speed: n
   if (data.spawn <= 0) {
     data.spawn = 0.55
     const rng = createRng(seed + Math.floor(state.time * 13))
+    const lim = viewportMin(w, h)
     data.rings.push({
-      x: rng.range(w * 0.15, w * 0.85),
-      y: rng.range(h * 0.25, h * 0.75),
-      r: scaled(4, scale),
-      max: scaled(rng.range(70, 140), scale),
+      x: rng.range(w * 0.1, w * 0.9),
+      y: rng.range(h * 0.15, h * 0.85),
+      r: lim * 0.01,
+      max: rng.range(lim * 0.18, lim * 0.38),
       life: 0,
     })
     if (data.rings.length > 12) data.rings.shift()
@@ -285,17 +314,17 @@ type FlameTongue = { x: number, phase: number, amp: number, h: number }
 type FlameData = { tongues: FlameTongue[] }
 
 export function createFlame(entry: CatalogEntry, seed: number, density: number, w: number, h: number): FlameData {
-  const { rng, scale } = baseCtx(entry, seed, w, h)
-  const n = Math.round(5 + density * 8)
+  const { rng } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
+  const n = Math.round(14 + density * 22)
   const tongues: FlameTongue[] = []
-  const cx = w / 2
   for (let i = 0; i < n; i++) {
     const r = rng.fork(i * 29)
     tongues.push({
-      x: cx + r.range(-w * 0.15, w * 0.15),
+      x: r.range(w * 0.02, w * 0.98),
       phase: r.range(0, Math.PI * 2),
-      amp: scaled(r.range(8, 22), scale),
-      h: scaled(r.range(60, 130), scale),
+      amp: r.range(lim * 0.006, lim * 0.024),
+      h: r.range(lim * 0.35, lim * 0.78),
     })
   }
   return { tongues }
@@ -305,9 +334,11 @@ export function stepFlame(_data: FlameData, _state: CatalogVisualState, _speed: 
 
 export function drawFlame(ctx: CanvasRenderingContext2D, entry: CatalogEntry, data: FlameData, state: CatalogVisualState) {
   const pal = paletteAt(entry.palette)
-  const { width: w, height: h, scale, time } = state
+  const { width: w, height: h, time } = state
+  const lim = viewportMin(w, h)
   state.firstFrame = clearFrame(ctx, w, h, pal, state.firstFrame)
-  const baseY = h * 0.88
+  const baseY = h
+  const baseW = lim * 0.016
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   for (const t of data.tongues) {
@@ -319,9 +350,9 @@ export function drawFlame(ctx: CanvasRenderingContext2D, entry: CatalogEntry, da
     g.addColorStop(1, hsl(entry, 20, 70, 0))
     ctx.fillStyle = g
     ctx.beginPath()
-    ctx.moveTo(t.x - scaled(8, scale), baseY)
+    ctx.moveTo(t.x - baseW, baseY)
     ctx.quadraticCurveTo(t.x + sway * 0.5, baseY - t.h * 0.5, t.x + sway, tipY)
-    ctx.quadraticCurveTo(t.x + sway * 0.5 + scaled(6, scale), baseY - t.h * 0.3, t.x + scaled(8, scale), baseY)
+    ctx.quadraticCurveTo(t.x + sway * 0.5 + baseW * 0.75, baseY - t.h * 0.3, t.x + baseW, baseY)
     ctx.closePath()
     ctx.fill()
   }
@@ -433,16 +464,17 @@ type MetaballData = { blobs: MetaBlob[] }
 
 export function createMetaball(entry: CatalogEntry, seed: number, density: number, w: number, h: number): MetaballData {
   const { rng, scale } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const n = Math.round(3 + density * 3)
   const blobs: MetaBlob[] = []
   for (let i = 0; i < n; i++) {
     const r = rng.fork(i * 41)
     blobs.push({
-      x: r.range(w * 0.25, w * 0.75),
-      y: r.range(h * 0.25, h * 0.75),
+      x: r.range(w * 0.15, w * 0.85),
+      y: r.range(h * 0.15, h * 0.85),
       vx: scaled(r.range(-20, 20), scale),
       vy: scaled(r.range(-20, 20), scale),
-      r: scaled(r.range(50, 90), scale),
+      r: r.range(lim * 0.08, lim * 0.16),
     })
   }
   return { blobs }
@@ -789,6 +821,7 @@ type NebulaData = { clouds: NebulaCloud[] }
 
 export function createNebula(entry: CatalogEntry, seed: number, density: number, w: number, h: number): NebulaData {
   const { rng, scale } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const n = Math.round(4 + density * 5)
   const clouds: NebulaCloud[] = []
   for (let i = 0; i < n; i++) {
@@ -796,7 +829,7 @@ export function createNebula(entry: CatalogEntry, seed: number, density: number,
     clouds.push({
       x: r.range(0, w),
       y: r.range(0, h),
-      r: scaled(r.range(80, 180), scale),
+      r: r.range(lim * 0.1, lim * 0.22),
       vx: scaled(r.range(-6, 6), scale),
       vy: scaled(r.range(-4, 4), scale),
       hueOff: r.range(-15, 25),
@@ -943,8 +976,9 @@ export function drawCircuit(ctx: CanvasRenderingContext2D, entry: CatalogEntry, 
 // --- Fabric ---
 type FabricData = { strips: { x: number, phase: number, amp: number }[] }
 
-export function createFabric(entry: CatalogEntry, seed: number, density: number, w: number, _h: number): FabricData {
-  const { rng } = baseCtx(entry, seed, w, 100)
+export function createFabric(entry: CatalogEntry, seed: number, density: number, w: number, h: number): FabricData {
+  const { rng } = baseCtx(entry, seed, w, h)
+  const lim = viewportMin(w, h)
   const n = Math.round(10 + density * 14)
   const strips: FabricData['strips'] = []
   for (let i = 0; i < n; i++) {
@@ -952,7 +986,7 @@ export function createFabric(entry: CatalogEntry, seed: number, density: number,
     strips.push({
       x: ((i + 0.5) / n) * w,
       phase: r.range(0, Math.PI * 2),
-      amp: r.range(12, 35 + entry.variant * 5),
+      amp: r.range(lim * 0.012, lim * (0.028 + entry.variant * 0.004)),
     })
   }
   return { strips }

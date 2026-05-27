@@ -37,7 +37,7 @@ Guidelines for building and reviewing visuals in **Stream Systems Visual**. The 
 
 ## Layout and performance
 
-- **Fill the viewport.** Grid-based visuals (hex, pulse, etc.) must compute columns/rows or cell size from `width`/`height`, center the field, and avoid fixed pixel offsets that only work at one resolution.
+- **Fill the viewport.** Grid-based visuals (hex, pulse, etc.) must compute columns/rows or cell size from `width`/`height`, center the field, and avoid fixed pixel offsets that only work at one resolution. **Feature size** (flame height, ripple radius, branch length, fabric wave amplitude, etc.) should use fractions of `Math.min(width, height)` — not reference-pixel ranges like `scaled(60, 130)` that stay tiny on large canvases.
 - **Cap expensive work.** Examples: grid cells ≤ ~32×32 logical units; mesh nodes ≤ ~36; ring lists trimmed; no per-frame `getImageData` over full canvas unless downsampled (see resonance).
 - **Avoid per-particle gradients when count is high.** Simple arcs or strokes for dense particle fields; reserve `createRadialGradient` for smaller counts (orbs, ember).
 - **DPR capped at 2 by default** (`readCanvasDpr`). Document if a visual needs `?dpr=` for crisp 4K.
