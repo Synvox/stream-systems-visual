@@ -7,6 +7,7 @@ Guidelines for building and reviewing visuals in **Stream Systems Visual**. The 
 ## Purpose
 
 - **Ambient, not attention-grabbing.** Motion should feel calm and satisfying at a glance, not busy or anxious.
+- **Non-interactive by design.** Visuals run unattended in OBS and must not depend on or respond to mouse, hover, click, drag, or touch input. Any interesting reaction, transition, or focal behavior belongs in the autonomous simulation.
 - **Readable behind overlays.** Streamers add title, webcam, and chat in OBS. The canvas stays free of text; copy lives in `data-*` attributes for external layers.
 - **Deterministic when seeded.** Same `seed`, `density`, and `speed` must reproduce the same scene for debugging, thumbnails, and shareable URLs.
 - **Resolution-agnostic.** Layout must fill 1080p and 4K canvases without tiny islands of content in a corner.
@@ -17,6 +18,7 @@ Guidelines for building and reviewing visuals in **Stream Systems Visual**. The 
 |------|-----|
 | **Canvas 2D only** | Single rendering path, predictable in OBS browser sources. |
 | **No on-canvas text** | Text is OBS’s job; avoids font/DPI issues. |
+| **No pointer interactions** | OBS browser sources are live-stream backgrounds, not user-controlled canvases. |
 | **Sim state in refs** | Per-frame updates must not go through React state. |
 | **`requestAnimationFrame` loop** | Use `useAnimationLoop`; cap `dt` (already done in the hook). |
 | **Lazy route chunks** | Each visual is a separate import in `routes.ts`. |
@@ -78,6 +80,7 @@ Before merging a new or changed visual:
 - [ ] Runs indefinitely without clumping, freezing, or empty regions after ~30s.
 - [ ] Stable at `speed=0` (pause) and reasonable at `speed=2`.
 - [ ] Same URL params → same frame after reload.
+- [ ] No mouse, hover, click, drag, or touch effects; the visual stays interesting without interaction.
 - [ ] No runaway CPU from particle count or O(n²) links on large N.
 - [ ] Distinct from an existing route (motion **and** composition, not just hue).
 - [ ] Homepage thumbnail updated: `npm run capture-thumbnails` (or `:only` after build). The capture script waits several seconds for the canvas to warm up and polls pixel brightness before screenshotting; pass route ids to recapture specific tiles.
@@ -86,7 +89,7 @@ Before merging a new or changed visual:
 
 - Arrow keys step through `visualizationRouteConfigs` order (disabled in `/cycle` via `suppressNavigation`).
 - `/cycle` crossfades between visuals for slideshow mode.
-- Keyboard: Space pause, R reseed, arrows prev/next.
+- Keyboard: Space pause, R reseed, arrows prev/next. These are operator controls for setup and review, not part of a visual's concept.
 
 ## What we optimize for
 
